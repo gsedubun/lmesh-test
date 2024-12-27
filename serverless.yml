@@ -1,0 +1,24 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: delsanders88
+# "app" enables Serverless Framework Dashboard features and sharing them with other Services.
+app: project-test
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: lmesh-project-test
+
+provider:
+  name: default-aws
+  region: ap-southeast-1
+  runtime: nodejs20.x
+
+
+functions:
+  hello:
+    handler: handler.hello
+    events:
+      - httpApi:
+          path: /areUThere
+          method: post
+
+resource:
+  
+
