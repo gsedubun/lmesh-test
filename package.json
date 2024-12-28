@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "aws-cognito-idp-userpool-domain": "^0.1.5",
-    "serverless-appsync-plugin": "^2.9.1"
+    "serverless-appsync-plugin": "^2.9.1",
+    "serverless-cognito-add-custom-attributes": "^0.3.1"
   }
 }

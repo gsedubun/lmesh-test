@@ -1,24 +1,106 @@
 # "org" ensures this Service is used with the correct Serverless Framework Access Key.
-org: delsanders88
+org: delsanders99
 # "app" enables Serverless Framework Dashboard features and sharing them with other Services.
 app: project-test
 # "service" is the name of this project. This will also be added to your AWS resource names.
-service: lmesh-project-test
+service: appsync-cognito-lambda
 
 provider:
-  name: default-aws
-  region: ap-southeast-1
-  runtime: nodejs20.x
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
 
+resources:
+  Resources:
+    AppSyncApi:
+      Type: "AWS::AppSync::GraphQLApi"
+      Properties:
+        Name: "AppSyncCognitoApi"
+        AuthenticationType: "AMAZON_COGNITO_USER_POOLS"
+        UserPoolConfig:
+          UserPoolId: !Ref CognitoUserPool
+          AwsRegion: "us-east-1"
+          DefaultAction: "ALLOW"
 
-functions:
-  hello:
-    handler: handler.hello
-    events:
-      - httpApi:
-          path: /areUThere
-          method: post
+    CognitoUserPool:
+      Type: "AWS::Cognito::UserPool"
+      Properties:
+        UserPoolName: "AppSyncUserPool"
 
-resource:
-  
+    GraphQLSchema:
+      Type: "AWS::AppSync::GraphQLSchema"
+      Properties:
+        ApiId: !GetAtt AppSyncApi.ApiId
+        Definition: |
+          type Query {
+            echo(message: String!): String
+          }
 
+    LambdaDataSource:
+      Type: "AWS::AppSync::DataSource"
+      Properties:
+        ApiId: !GetAtt AppSyncApi.ApiId
+        Name: "LambdaDataSource"
+        Type: "AWS_LAMBDA"
+        ServiceRoleArn: !GetAtt LambdaExecutionRole.Arn
+        LambdaConfig:
+          LambdaFunctionArn: !GetAtt EchoLambdaFunction.Arn
+
+    EchoLambdaFunction:
+      Type: "AWS::Lambda::Function"
+      Properties:
+        FunctionName: "echoMessageFunction"
+        Handler: handler.echo
+        Role: !GetAtt LambdaExecutionRole.Arn        
+        Code:
+          ZipFile: |
+            exports.echo = async (event) => {
+              const message = event.arguments.message;
+              return message;
+            };
+        Runtime: nodejs18.x
+
+    LambdaExecutionRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - "lambda.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        Policies:
+          - PolicyName: "AppSyncLambdaPolicy"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: "Allow"
+                  Action:
+                    - "appsync:*"
+                  Resource: "*"
+                - Effect: "Allow"
+                  Action:
+                    - "logs:CreateLogGroup"
+                    - "logs:CreateLogStream"
+                    - "logs:PutLogEvents"
+                  Resource: "*"
+    AppSyncResolver:
+          Type: "AWS::AppSync::Resolver"
+          Properties:
+            ApiId: !GetAtt AppSyncApi.ApiId
+            TypeName: "Query"
+            FieldName: "echo"
+            DataSourceName: !Ref LambdaDataSource
+            RequestMappingTemplate: |
+              {
+                "version": "2017-02-28",
+                "operation": "Invoke",
+                "payload": {
+                  "arguments": $util.toJson($context.arguments)
+                }
+              }
+            ResponseMappingTemplate: |
+              $util.toJson($context.result)
